@@ -1,12 +1,17 @@
 # =========================
 # IMPORTS
 # =========================
+
+import os
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0" # Evita avisos de optimización
+
 import streamlit as st
+import tensorflow as tf
 import cv2
 import tempfile
 import os
 from PIL import Image
-import tensorflow as tf
 import numpy as np
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 import av
