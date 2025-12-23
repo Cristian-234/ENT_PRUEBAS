@@ -1,23 +1,14 @@
 # =========================
 # IMPORTS
 # =========================
-
-import os
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0" # Evita avisos de optimización
-
 import streamlit as st
-import tensorflow as tf
 import cv2
 import tempfile
-import os
 from PIL import Image
+import tensorflow as tf
 import numpy as np
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 import av
-
-# Forzar compatibilidad con modelos antiguos de Keras si es necesario
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 # =========================
 # CONFIGURACIÓN DE STUN (SOLUCIONA EL ERROR DE CÁMARA)
@@ -289,7 +280,6 @@ info_enfermedades = {
 # =========================
 @st.cache_resource
 def load_model():
-    # Cargamos el modelo sin compilar para evitar errores de serialización de optimizadores
     return tf.keras.models.load_model("modelo/bulbasaur.h5", compile=False)
 
 # =========================
@@ -306,26 +296,17 @@ def process_frame_cv(frame):
     return np.expand_dims(frame, axis=0)
 
 # =========================
-# VIDEO (Corregido para evitar MediaFileStorageError)
+# VIDEO
 # =========================
 def process_video(video_file, model):
-    # Creamos un archivo temporal físico real en el disco del servidor
-    # Esto evita el error de "Missing file" en la memoria de Streamlit
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
-        tfile.write(video_file.read())
-        temp_path = tfile.name
+    tfile = tempfile.NamedTemporaryFile(delete=False)
+    tfile.write(video_file.read())
 
-    cap = cv2.VideoCapture(temp_path)
-    stframe = st.empty() # Espacio reservado para el video
+    cap = cv2.VideoCapture(tfile.name)
+    stframe = st.empty()
 
     sanas, enfermas = 0, 0
     frame_count = 0
-
-    # Barra de progreso para dar feedback al usuario
-    progress_bar = st.progress(0)
-    
-    # Obtener total de frames para la barra de progreso
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -333,13 +314,8 @@ def process_video(video_file, model):
             break
 
         frame_count += 1
-        # Procesar 1 de cada 10 frames para no saturar la memoria y aumentar velocidad
-        if frame_count % 10 != 0:
+        if frame_count % 5 != 0:
             continue
-
-        # Actualizar progreso
-        if total_frames > 0:
-            progress_bar.progress(min(frame_count / total_frames, 1.0))
 
         img = process_frame_cv(frame)
         pred = model.predict(img, verbose=0)
@@ -355,27 +331,20 @@ def process_video(video_file, model):
             color = (0, 0, 255)
             enfermas += 1
 
-        # Dibujar en el frame
         h, w, _ = frame.shape
         cv2.rectangle(frame, (10, 10), (w-10, h-10), color, 3)
         cv2.putText(frame, text, (20, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
-        # Convertir y mostrar
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame_rgb, channels="RGB", use_column_width=True)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        stframe.image(frame, channels="RGB")
 
     cap.release()
-    progress_bar.empty()
-    
-    # Limpiar el archivo temporal del disco
-    if os.path.exists(temp_path):
-        os.remove(temp_path)
 
     st.subheader("📊 Resumen del video")
     col1, col2 = st.columns(2)
-    col1.metric("Detecciones Sanas", sanas)
-    col2.metric("Detecciones Enfermas", enfermas)
+    col1.metric("Frames sanos", sanas)
+    col2.metric("Frames enfermos", enfermas)
 
 class VideoProcessor(VideoProcessorBase):
     def __init__(self):
