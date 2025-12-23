@@ -1,6 +1,9 @@
+# En lugar de fijar la versión exacta con ==
+# Usa >= o simplemente quita la versión para que instale la más compatible
+
 streamlit==1.52.2
-tensorflow==2.13.0
-opencv-python-headless==4.8.1
+tensorflow>=2.13.0
+opencv-python-headless
 pillow==12.0.0
 numpy==1.24.3
 streamlit-webrtc==0.64.5
