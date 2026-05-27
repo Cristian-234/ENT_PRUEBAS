@@ -275,6 +275,113 @@ info_enfermedades = {
     }
 }
 
+def inject_custom_css():
+    st.markdown("""
+    <style>
+        .stApp {
+            background: linear-gradient(180deg, #f4fbf5 0%, #ffffff 100%);
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #14532d, #2e7d32, #66bb6a);
+            padding: 2.2rem;
+            border-radius: 24px;
+            color: white;
+            box-shadow: 0 12px 32px rgba(20, 83, 45, 0.25);
+            margin-bottom: 1.5rem;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 2.4rem;
+            font-weight: 800;
+        }
+
+        .hero p {
+            margin-top: .6rem;
+            font-size: 1.05rem;
+            opacity: .95;
+        }
+
+        .card {
+            background: white;
+            color: #0f172a;
+            padding: 1.3rem;
+            border-radius: 20px;
+            border: 1px solid #dbeafe;
+            box-shadow: 0 8px 24px rgba(0,0,0,.07);
+            margin-bottom: 1rem;
+        }
+
+        .result-ok {
+            background: linear-gradient(135deg, #dcfce7, #ffffff);
+            border-left: 8px solid #16a34a;
+        }
+
+        .result-bad {
+            background: linear-gradient(135deg, #fee2e2, #ffffff);
+            border-left: 8px solid #dc2626;
+        }
+
+        .result-title {
+            font-size: 1.7rem;
+            font-weight: 800;
+            margin-bottom: .4rem;
+            color: #0f172a;
+        }
+
+        .section-title {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #14532d;
+            margin: 1rem 0 .6rem 0;
+        }
+
+        .muted {
+            color: #475569;
+            font-size: .95rem;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def render_result_card(estado, clase, confidence, key):
+    css_class = "result-ok" if estado == "Sana" else "result-bad"
+    icon = "✅" if estado == "Sana" else "⚠️"
+
+    st.markdown(f"""
+    <div class="card {css_class}">
+        <div class="result-title">{icon} {estado}</div>
+        <p><b>Clase detectada:</b> {clase}</p>
+        <p><b>Confianza del modelo:</b> {confidence:.2f}%</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if key in info_enfermedades:
+        st.markdown("""
+        <div class="section-title">📖 Información agronómica</div>
+        """, unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown(f"""
+            <div class="card">
+                <h4>🌿 Planta</h4>
+                <p>{info_enfermedades[key]['planta']}</p>
+                <h4>🧬 Descripción</h4>
+                <p>{info_enfermedades[key]['descripcion']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            st.markdown(f"""
+            <div class="card">
+                <h4>🛠️ Recomendación</h4>
+                <p>{info_enfermedades[key]['recomendacion']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
 # =========================
 # CARGA DEL MODELO
 # =========================
@@ -378,67 +485,98 @@ class VideoProcessor(VideoProcessorBase):
 # APP PRINCIPAL
 # =========================
 def main():
+    inject_custom_css()
+
     st.markdown("""
-    <h1 style='text-align:center; color:#2e7d32;'>🌱 Sistema Inteligente de Detección de Enfermedades en Plantas</h1>
-    <h4 style='text-align:center;'>Deep Learning aplicado a la agricultura</h4>
-    <hr>
+    <div class="hero">
+        <h1>🌱 Sistema Inteligente de Detección de Enfermedades en Plantas</h1>
+        <p>Deep Learning aplicado a la agricultura para el análisis de hojas mediante imagen, video y cámara en tiempo real.</p>
+    </div>
     """, unsafe_allow_html=True)
 
-    # =========================
-    # SIDEBAR
-    # =========================
     st.sidebar.title("📋 Panel de Control")
+
     opcion = st.sidebar.radio(
         "Modo de análisis",
         ("Imagen", "Video", "Cámara en tiempo real")
     )
 
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🧠 Modelo")
+    st.sidebar.info("Clasificador de enfermedades foliares basado en redes neuronales profundas.")
+
     st.sidebar.markdown("### 🌿 Cultivos soportados")
     st.sidebar.write(
-        "Manzana, Maíz, Uva, Tomate, Papa, Fresa, Cítricos, Pimiento"
+        "Manzana, Maíz, Uva, Tomate, Papa, Fresa, Cítricos, Pimiento y otros cultivos del dataset."
+    )
+
+    st.sidebar.markdown("### ⚠️ Nota")
+    st.sidebar.caption(
+        "El resultado es una predicción orientativa. Para decisiones agrícolas reales, se recomienda validación de un especialista."
     )
 
     model = load_model()
 
-    # =========================
-    # MODO IMAGEN
-    # =========================
     if opcion == "Imagen":
-        file = st.file_uploader(
-            "📷 Carga una imagen",
-            type=["jpg", "png", "jpeg"]
-        )
+        st.markdown('<div class="section-title">📷 Análisis por imagen</div>', unsafe_allow_html=True)
 
-        if file:
-            image = Image.open(file)
-            st.image(image, use_column_width=True)
+        col_img, col_result = st.columns([1.05, 1.25], gap="large")
 
-            img = process_image_pil(image)
-            pred = model.predict(img, verbose=0)
-            label = np.argmax(pred)
-            confidence = np.max(pred) * 100
-
-            col1, col2, col3 = st.columns(3)
-            col1.metric(
-                "Estado",
-                "Sana" if "healthy" in labels[label] else "Enferma"
+        with col_img:
+            file = st.file_uploader(
+                "Carga una imagen de una hoja",
+                type=["jpg", "png", "jpeg"]
             )
-            col2.metric("Confianza", f"{confidence:.2f}%")
-            col3.metric("Clase", traducciones[label])
 
-            key = labels[label]
-            if key in info_enfermedades:
-                st.subheader("📖 Información agronómica")
-                st.write(f"**Planta:** {info_enfermedades[key]['planta']}")
-                st.write(f"**Descripción:** {info_enfermedades[key]['descripcion']}")
-                st.write(f"**Recomendación:** {info_enfermedades[key]['recomendacion']}")
+            if file:
+                image = Image.open(file).convert("RGB")
+                st.image(image, caption="Imagen cargada", width="stretch")
+            else:
+                st.markdown("""
+                <div class="card">
+                    <h4>Instrucciones</h4>
+                    <p>Sube una imagen clara de una hoja. Para mejores resultados, usa buena iluminación y evita fondos muy cargados.</p>
+                </div>
+                """, unsafe_allow_html=True)
 
-    # =========================
-    # MODO VIDEO
-    # =========================
+        with col_result:
+            st.markdown('<div class="section-title">🩺 Resultado del diagnóstico</div>', unsafe_allow_html=True)
+
+            if file:
+                img = process_image_pil(image)
+                pred = model.predict(img, verbose=0)
+                label = np.argmax(pred)
+                confidence = np.max(pred) * 100
+
+                key = labels[label]
+                estado = "Sana" if "healthy" in key else "Enferma"
+                clase = traducciones[label]
+
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Estado", estado)
+                col2.metric("Confianza", f"{confidence:.2f}%")
+                col3.metric("Clase", clase)
+
+                render_result_card(estado, clase, confidence, key)
+            else:
+                st.markdown("""
+                <div class="card">
+                    <h4>Esperando imagen...</h4>
+                    <p>Cuando cargues una imagen, el diagnóstico aparecerá en esta sección.</p>
+                </div>
+                """, unsafe_allow_html=True)
+
     elif opcion == "Video":
+        st.markdown('<div class="section-title">🎥 Análisis por video</div>', unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="card">
+            <p>Sube un video corto donde la hoja aparezca visible. El sistema analizará frames del video y mostrará si la hoja se encuentra sana o enferma.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
         video = st.file_uploader(
-            "🎥 Carga un video",
+            "Carga un video",
             type=["mp4", "avi", "mov"]
         )
 
@@ -446,19 +584,23 @@ def main():
             st.info("Procesando video...")
             process_video(video, model)
 
-    # =========================
-    # MODO CÁMARA EN TIEMPO REAL
-    # =========================
     elif opcion == "Cámara en tiempo real":
-        st.subheader("🎦 Detección en tiempo real")
-        st.info(
-            "Permite el acceso a tu cámara para detectar enfermedades en tiempo real."
+        st.markdown('<div class="section-title">🎦 Detección en tiempo real</div>', unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="card">
+            <p>Permite el acceso a tu cámara y coloca la hoja frente al lente. El sistema mostrará el estado de la hoja en tiempo real.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.warning(
+            "En celulares, la cámara en tiempo real puede requerir HTTPS. Si falla, usa el modo Imagen."
         )
 
         webrtc_streamer(
             key="deteccion-plantas",
             video_processor_factory=VideoProcessor,
-            rtc_configuration=RTC_CONFIG,  # ¡Esta línea soluciona el error!
+            rtc_configuration=RTC_CONFIG,
             media_stream_constraints={
                 "video": True,
                 "audio": False
